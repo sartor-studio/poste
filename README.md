@@ -10,6 +10,9 @@ Ouvrir **PowerShell** (touche Windows, taper « PowerShell », Entrée), coller 
 ci-dessous, Entrée.
 
 <!-- BEGIN_LIGNE -->
+```powershell
+[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor 3072; $f="$env:TEMP\sartor-installer.ps1"; Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/sartor-studio/poste/6b462fef010df5be76541dc3d96ad4671557b0f4/installer.ps1" -OutFile $f; if ((Get-FileHash $f -Algorithm SHA256).Hash -ne "80F0C2E3ABBBFB06A3A8C2B50CF11DA33812E0318F72CA8A00695DAAFDD162CA") { Remove-Item $f -ErrorAction SilentlyContinue; Write-Host "Empreinte inattendue : installation arretee." -ForegroundColor Red } else { & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $f }
+```
 <!-- END_LIGNE -->
 
 La ligne télécharge le script **à un commit précis** de ce dépôt, calcule son empreinte
@@ -38,6 +41,6 @@ encore valable évite de redemander un code.
 ## Publier une nouvelle version
 
 Le script se modifie ici, se commite, se pousse. Puis, depuis l'atelier :
-`python3 tools/poste_publier.py`, qui relit le commit et l'empreinte, réécrit la ligne
+`venv/bin/python tools/poste_publier.py`, qui relit le commit et l'empreinte, réécrit la ligne
 de ce README et celle de la plateforme. Une ligne ancienne continue de pointer vers
 l'ancienne version, intacte.
