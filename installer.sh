@@ -117,6 +117,27 @@ elif present gh; then
   fi
 fi
 
+# Dire à la plateforme quel compte GitHub c'est, pour que les droits y descendent.
+# Sans ce chaînon, un dossier ouvert dans /admin/comptes n'atteint jamais le dépôt :
+# la plateforme connaît quelqu'un par son adresse Microsoft, GitHub par un
+# pseudonyme, et personne ne dit que c'est la même personne. On ne le devine pas,
+# on le constate : `gh` vient d'authentifier quelqu'un, on demande qui.
+if [ "$GITHUB_OK" -eq 1 ] && present gh; then
+  LOGIN="$(gh api user --jq .login 2>/dev/null || true)"
+  if [ -n "$LOGIN" ]; then
+    if curl -fsS -m 20 -X PUT "$API/api/moi/github" \
+         -H "Authorization: Bearer $JETON" \
+         -H 'Content-Type: application/json; charset=utf-8' \
+         -d "{\"login\":\"$LOGIN\"}" >/dev/null 2>&1; then
+      ok "compte GitHub $LOGIN relié à ton compte Sartor"
+      info "Tes dépôts te seront ouverts tout seuls, dans le quart d'heure."
+    else
+      alerte "GitHub $LOGIN n'a pas pu être signalé à la plateforme."
+      manque "Lien GitHub : relance ce script, ou préviens Enzo"
+    fi
+  fi
+fi
+
 # 5 — les skills -------------------------------------------------------------
 etape 5 "Installer les skills Sartor dans Claude Code"
 if ! present claude || [ "$GITHUB_OK" -ne 1 ]; then

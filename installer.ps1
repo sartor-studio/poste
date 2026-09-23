@@ -370,6 +370,29 @@ function Invoke-Installation {
             Write-Alerte "GitHub ne reconnaît pas encore ce poste."
             $script:Manques.Add('GitHub : relance la ligne et termine la connexion dans le navigateur')
         }
+
+        # Dire à la plateforme quel compte GitHub c'est, pour que les droits y
+        # descendent. Sans ce chaînon, un dossier ouvert dans /admin/comptes
+        # n'atteint jamais le dépôt : la plateforme connaît quelqu'un par son
+        # adresse Microsoft, GitHub par un pseudonyme, et rien ne dit que c'est
+        # la même personne. On ne le devine pas, on le constate.
+        if ($githubOk -and (Test-Commande 'gh')) {
+            $login = (& gh api user --jq .login 2>$null)
+            if ($login) {
+                $login = "$login".Trim()
+                try {
+                    Invoke-RestMethod -Method Put -Uri "$SartorApi/api/moi/github" -UseBasicParsing `
+                        -Headers @{ Authorization = "Bearer $jeton" } `
+                        -ContentType 'application/json; charset=utf-8' `
+                        -Body (@{ login = $login } | ConvertTo-Json -Compress) | Out-Null
+                    Write-Ok "Compte GitHub $login relié à ton compte Sartor"
+                    Write-Info "Tes dépôts te seront ouverts tout seuls, dans le quart d'heure."
+                } catch {
+                    Write-Alerte "GitHub $login n'a pas pu être signalé à la plateforme."
+                    $script:Manques.Add('Lien GitHub : relance la ligne, ou préviens Enzo')
+                }
+            }
+        }
     }
 
     # 5. Les skills ---------------------------------------------------------
