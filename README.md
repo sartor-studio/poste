@@ -11,7 +11,7 @@ ci-dessous, Entrée.
 
 <!-- BEGIN_LIGNE -->
 ```powershell
-[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor 3072; $f="$env:TEMP\sartor-installer.ps1"; Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/sartor-studio/poste/6b462fef010df5be76541dc3d96ad4671557b0f4/installer.ps1" -OutFile $f; if ((Get-FileHash $f -Algorithm SHA256).Hash -ne "80F0C2E3ABBBFB06A3A8C2B50CF11DA33812E0318F72CA8A00695DAAFDD162CA") { Remove-Item $f -ErrorAction SilentlyContinue; Write-Host "Empreinte inattendue : installation arretee." -ForegroundColor Red } else { & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $f }
+[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor 3072; $f="$env:TEMP\sartor-installer.ps1"; Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/sartor-studio/poste/6d7733ed25bc6b1ddf5c3706628e24f0968916ca/installer.ps1" -OutFile $f; if ((Get-FileHash $f -Algorithm SHA256).Hash -ne "6CBDA34DB0F88DF13C2B0740DF26A29E73CDE3BA436FA312364A69F633C9A306") { Remove-Item $f -ErrorAction SilentlyContinue; Write-Host "Empreinte inattendue : installation arretee." -ForegroundColor Red } else { & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $f }
 ```
 <!-- END_LIGNE -->
 
