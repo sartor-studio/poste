@@ -42,8 +42,22 @@ else
     info "Réponse : $(printf '%s' "$REP" | tail -c 200)"
     exit 1
   }
-  JETON="$(printf '%s' "$REP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("token",""))')"
-  [ -z "$JETON" ] && { echo "réponse sans jeton : $REP"; exit 1; }
+  # La plateforme renvoie la clé « jeton » (c'est ce que lit installer.ps1).
+  # Le 23/09/2026 cette ligne cherchait « token » : le code partait, la plateforme
+  # le consommait, et le script s'arrêtait en disant qu'il n'avait rien reçu.
+  # On accepte les deux noms pour ne plus jamais rejouer ça.
+  JETON="$(printf '%s' "$REP" | python3 -c 'import sys, json
+d = json.load(sys.stdin)
+print(d.get("jeton") or d.get("token") or "")' 2>/dev/null)"
+  if [ -z "$JETON" ]; then
+    printf '\n\033[31mLa plateforme a répondu sans jeton lisible.\033[0m\n'
+    # Surtout pas la réponse brute : elle porte le jeton en clair.
+    info "Clés reçues : $(printf '%s' "$REP" | python3 -c 'import sys, json
+try: print(", ".join(json.load(sys.stdin)))
+except Exception: print("réponse illisible")' 2>/dev/null)"
+    info "Préviens Enzo : ce code-ci est consommé, il en faudra un neuf."
+    exit 1
+  fi
   ok "compte relié"
 fi
 
