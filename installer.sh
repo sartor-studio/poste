@@ -24,6 +24,22 @@ alerte() { printf '  \033[33m!!\033[0m  %s\n' "$1"; }
 manque() { MANQUES+=("$1"); }
 present(){ command -v "$1" >/dev/null 2>&1; }
 
+# GitHub authentifie puis refuse le shell, donc `ssh -T git@github.com` **sort en
+# code 1 même quand tout va bien**. Sous `set -o pipefail`, ce 1 remonte comme
+# résultat du pipeline `ssh … | grep`, alors que le grep a trouvé ce qu'il
+# cherchait. Conséquence, le 24/09/2026 : `GITHUB_OK` ne pouvait jamais valoir 1
+# sous Linux, donc le pseudonyme n'était jamais envoyé à la plateforme, les
+# skills étaient sautés et rien n'était cloné — sur une machine où la connexion
+# SSH marchait parfaitement. On capture la sortie, on ne la met plus en tuyau.
+github_ssh_ok() {
+  local reponse
+  reponse="$(ssh -T -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 git@github.com 2>&1 || true)"
+  case "$reponse" in *"successfully authenticated"*) return 0 ;; *) return 1 ;; esac
+}
+
+# Même piège, même remède : `X | grep -q` sous pipefail ment dès que X sort non nul.
+contient() { case "$2" in *"$1"*) return 0 ;; *) return 1 ;; esac; }
+
 # 1 — le code ----------------------------------------------------------------
 etape 1 "Relier cette machine à ton compte Sartor"
 JETON=""
@@ -90,6 +106,10 @@ present gh && ok "gh $(gh --version | head -1 | awk '{print $3}')" || manque "Gi
 
 # Claude Code par npm plutôt qu'un script distant passé au shell : la maison
 # n'exécute pas ce qu'elle télécharge sans le voir (plan de bridage, 07/06/2026).
+# Le PATH d'abord : `claude` vit dans ~/.npm-global/bin, que `.bashrc` ajoute
+# pour les sessions interactives. Sans cette ligne, un lancement non interactif
+# ne le voit pas, conclut qu'il manque et le réinstalle à chaque passage.
+export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$PATH"
 if ! present claude; then
   sudo apt-get install -y -qq nodejs npm >/dev/null 2>&1
   mkdir -p "$HOME/.npm-global" && npm config set prefix "$HOME/.npm-global" >/dev/null 2>&1
@@ -104,12 +124,21 @@ present claude && ok "claude $(claude --version 2>/dev/null | head -1)" || manqu
 # 4 — GitHub -----------------------------------------------------------------
 etape 4 "Relier cette machine à ton compte GitHub"
 GITHUB_OK=0
-if ssh -T -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 git@github.com 2>&1 | grep -q 'successfully authenticated'; then
+if github_ssh_ok; then
   GITHUB_OK=1; ok "GitHub répond déjà en SSH"
-elif present gh; then
+elif ! present gh; then
+  alerte "GitHub CLI manque : étape sautée."
+  manque "GitHub : installer gh, puis relancer ce script"
+elif [ ! -t 0 ]; then
+  # `gh auth login --web` attend qu'un humain ouvre un navigateur. Lancé sans
+  # personne devant le clavier, il patiente jusqu'à ce qu'on le tue. On le dit
+  # plutôt que de faire semblant de travailler pendant dix minutes.
+  alerte "GitHub demande une connexion, et ce script ne tourne pas dans un terminal."
+  manque "GitHub : relancer ce script depuis une vraie session pour te connecter"
+else
   info "Une fenêtre va te donner un code à coller sur github.com/login/device."
   gh auth login --hostname github.com --git-protocol ssh --web && gh auth setup-git
-  if ssh -T -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 git@github.com 2>&1 | grep -q 'successfully authenticated'; then
+  if github_ssh_ok; then
     GITHUB_OK=1; ok "GitHub relié"
   else
     alerte "GitHub ne répond pas encore en SSH."
@@ -148,14 +177,18 @@ elif ! git ls-remote --heads "$MARKETPLACE" >/dev/null 2>&1; then
   info "Accepte l'invitation sur https://github.com/sartor-studio, puis relance."
   manque "Skills Sartor : accepter l'invitation GitHub à sartor-studio, puis relancer"
 else
-  if claude plugin marketplace list --json 2>/dev/null | grep -q '"sartor"'; then
+  if contient '"sartor"' "$(claude plugin marketplace list --json 2>/dev/null || true)"; then
     claude plugin marketplace update sartor >/dev/null 2>&1
   else
     claude plugin marketplace add "$MARKETPLACE" >/dev/null 2>&1
   fi
-  claude plugin list --json 2>/dev/null | grep -q 'sartor@sartor' || claude plugin install sartor@sartor >/dev/null 2>&1
-  claude plugin list --json 2>/dev/null | grep -q 'sartor@sartor' \
-    && ok "paquet sartor installé" || manque "Skills Sartor : installation à refaire"
+  contient 'sartor@sartor' "$(claude plugin list --json 2>/dev/null || true)" \
+    || claude plugin install sartor@sartor >/dev/null 2>&1
+  if contient 'sartor@sartor' "$(claude plugin list --json 2>/dev/null || true)"; then
+    ok "paquet sartor installé"
+  else
+    manque "Skills Sartor : installation à refaire"
+  fi
 fi
 
 # 6 — les dépôts -------------------------------------------------------------
